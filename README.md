@@ -76,8 +76,17 @@ Mỗi người chỉ ghi dữ liệu của chính mình và chỉ xem được d
 2. Một người bấm **Tạo phòng** rồi gửi **mã 6 ký tự** cho bạn. Người kia tạo tài khoản và nhập mã để vào phòng.
 3. Tiến độ đã có trên máy sẽ được gộp vào tài khoản, không bị mất.
 
-**Quên mật khẩu:** người tạo project vào Supabase → **Authentication → Users** → chọn tài khoản → đặt lại mật khẩu.
-Tên đăng nhập `minh` tương ứng với user `minh@ewf.local` trong danh sách.
+**Quên mật khẩu:** khi tạo tài khoản, app hiện một **mã khôi phục** (dạng `K7QM-2XFD-9PLA`), hãy lưu lại.
+Quên mật khẩu thì ở màn hình đăng nhập bấm **Quên mật khẩu?** → nhập tên đăng nhập, mã khôi phục và mật khẩu mới.
+Mỗi mã dùng được một lần (dùng xong app cấp mã mới). Nhập sai 5 lần thì bị khoá 1 giờ.
+Lỡ mất mã khi vẫn đang đăng nhập: vào **Cùng học** → **Mã khôi phục mới**.
+(Project tạo trước khi có tính năng này: chạy thêm file `supabase/recovery.sql` trong SQL Editor.)
+
+Mất cả mã khôi phục: người tạo project vào **SQL Editor** và chạy (thay tên và mật khẩu):
+```sql
+update auth.users set encrypted_password = extensions.crypt('matkhaumoi', extensions.gen_salt('bf'))
+where email = 'tendangnhap@ewf.local';
+```
 Nếu khi tạo tài khoản báo lỗi email không hợp lệ, đổi `emailDomain` trong `app/js/config.js` thành một tên miền khác (ví dụ `ewf-app.com`). Chỉ đổi trước khi có người đăng ký.
 
 ## Lưu ý

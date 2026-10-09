@@ -43,6 +43,7 @@
     if (/Email not confirmed/i.test(m)) return new Error("Cần tắt 'Confirm email' trong Supabase (Authentication → Sign In / Providers → Email)");
     if (/Password should be/i.test(m)) return new Error("Mật khẩu tối thiểu 6 ký tự");
     if (/rate limit/i.test(m)) return new Error("Thử quá nhiều lần, đợi một lúc rồi thử lại");
+    if (/recovery_code|reset_password_with_code/i.test(m)) return new Error("Máy chủ chưa có tính năng mã khôi phục — cần chạy file supabase/recovery.sql (xem README)");
     return new Error(m);
   }
   const need = (res) => { if (res.error) throw friendly(res.error); return res.data; };
@@ -68,11 +69,31 @@
     const data = need(await db.auth.signInWithPassword({ email: emailOf(username), password }));
     await afterLogin(data.user);
   }
+  // ---------- Mã khôi phục mật khẩu (supabase/recovery.sql) ----------
+  async function newRecoveryCode() {
+    const code = need(await db.rpc("new_recovery_code"));
+    S.recovery = true;
+    return code;
+  }
+  // Đặt mật khẩu mới bằng mã khôi phục rồi đăng nhập luôn. Trả về mã khôi phục mới (mã cũ hết hiệu lực).
+  async function resetPassword(username, code, password) {
+    if (password.length < 6) throw new Error("Mật khẩu tối thiểu 6 ký tự");
+    const r = need(await db.rpc("reset_password_with_code", { p_username: username, p_code: code, p_password: password }));
+    if (!r || !r.ok) throw new Error((r && r.error) || "Không đặt lại được mật khẩu");
+    await signIn(username, password);
+    S.recovery = true;
+    return r.code;
+  }
+  async function checkRecovery() {
+    const { data, error } = await db.rpc("has_recovery_code");
+    S.recovery = error ? null : !!data; // null: máy chủ chưa chạy recovery.sql → không nhắc
+  }
+
   async function signOut() {
     await flush();
     unsubscribe();
     await db.auth.signOut();
-    Object.assign(S, { user: null, profile: null, room: null, members: [] });
+    Object.assign(S, { user: null, profile: null, room: null, members: [], recovery: null });
     setStatus("guest");
     emit("change");
   }
@@ -83,6 +104,7 @@
     if (owner && owner !== user.id) EWF.clearLocal(); // dữ liệu của tài khoản khác vẫn an toàn trên máy chủ
     localStorage.setItem(OWNER, user.id);
     await loadContext();
+    await checkRecovery();
     await pull();
   }
 
@@ -253,7 +275,7 @@
 
   EWF.sync = {
     enabled, db, state: S, on, start, flush,
-    signUp, signIn, signOut,
+    signUp, signIn, signOut, newRecoveryCode, resetPassword,
     async reload() {
       S.error = null;
       try { await loadContext(); await pull(); } catch (e) { S.error = e.message; setStatus(navigator.onLine ? "error" : "offline"); }

@@ -65,38 +65,95 @@
       <div class="auth">
         <div class="card panel">
           <div class="tabs"><button class="tab active" data-tab="in">Đăng nhập</button><button class="tab" data-tab="up">Tạo tài khoản</button></div>
+          <h3 id="au-forgot-h" hidden>Đặt lại mật khẩu</h3>
           <form id="auth-form" autocomplete="on">
             <div class="field"><label for="au-user">Tên đăng nhập</label><input type="text" id="au-user" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="vd: minh_nguyen" required></div>
             <div class="field" id="au-name-f" hidden><label for="au-name">Tên hiển thị</label><input type="text" id="au-name" maxlength="40" placeholder="vd: Minh"></div>
-            <div class="field"><label for="au-pass">Mật khẩu</label><input type="password" id="au-pass" autocomplete="current-password" minlength="6" required></div>
+            <div class="field" id="au-code-f" hidden><label for="au-code">Mã khôi phục</label><input type="text" id="au-code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="vd: K7QM-2XFD-9PLA" class="code-input"></div>
+            <div class="field"><label for="au-pass" id="au-pass-l">Mật khẩu</label><input type="password" id="au-pass" autocomplete="current-password" minlength="6" required></div>
             <p class="small" id="au-err" style="color:var(--bad)" hidden></p>
             <button class="btn primary" type="submit" id="au-go" style="width:100%">Đăng nhập</button>
           </form>
-          <p class="muted small" style="margin-bottom:0">Tiến độ đang có trên máy này sẽ được gộp vào tài khoản, không bị mất. Quên mật khẩu: nhờ người quản lý project Supabase đặt lại.</p>
+          <p class="small" style="margin-bottom:0"><button class="btn ghost sm" id="au-forgot" type="button">Quên mật khẩu?</button></p>
+          <p class="muted small" id="au-note" style="margin-bottom:0">Tiến độ đang có trên máy này sẽ được gộp vào tài khoản, không bị mất.</p>
         </div>
       </div>`;
     let mode = "in";
-    $$(".tab").forEach((t) => (t.onclick = () => {
-      mode = t.dataset.tab;
-      $$(".tab").forEach((x) => x.classList.toggle("active", x === t));
-      $("#au-name-f").hidden = mode === "in";
-      $("#au-go").textContent = mode === "in" ? "Đăng nhập" : "Tạo tài khoản";
-      $("#au-pass").autocomplete = mode === "in" ? "current-password" : "new-password";
-    }));
+    const setMode = (m) => {
+      mode = m;
+      const forgot = m === "forgot";
+      $$(".tab").forEach((x) => x.classList.toggle("active", x.dataset.tab === m));
+      $(".auth .tabs").hidden = forgot;
+      $("#au-forgot-h").hidden = !forgot;
+      $("#au-name-f").hidden = m !== "up";
+      $("#au-code-f").hidden = !forgot;
+      $("#au-code").required = forgot;
+      $("#au-pass-l").textContent = forgot ? "Mật khẩu mới" : "Mật khẩu";
+      $("#au-go").textContent = { in: "Đăng nhập", up: "Tạo tài khoản", forgot: "Đặt mật khẩu mới" }[m];
+      $("#au-pass").autocomplete = m === "in" ? "current-password" : "new-password";
+      $("#au-forgot").textContent = forgot ? "← Quay lại đăng nhập" : "Quên mật khẩu?";
+      $("#au-note").textContent = forgot
+        ? "Nhập mã khôi phục bạn đã lưu khi tạo tài khoản. Tiến độ học vẫn còn nguyên."
+        : "Tiến độ đang có trên máy này sẽ được gộp vào tài khoản, không bị mất.";
+      $("#au-err").hidden = true;
+    };
+    $$(".tab").forEach((t) => (t.onclick = () => setMode(t.dataset.tab)));
+    $("#au-forgot").onclick = () => setMode(mode === "forgot" ? "in" : "forgot");
     $("#auth-form").onsubmit = async (e) => {
       e.preventDefault();
       const btn = $("#au-go"), err = $("#au-err");
       btn.disabled = true; err.hidden = true;
+      const user = $("#au-user").value, pass = $("#au-pass").value;
       try {
-        if (mode === "in") await sync.signIn($("#au-user").value, $("#au-pass").value);
-        else await sync.signUp($("#au-user").value, $("#au-name").value, $("#au-pass").value);
-        toast(`Chào ${S.profile ? S.profile.display_name : "bạn"}!`);
-        EWF.ui.route();
-        checkNotifications();
+        let code = null;
+        if (mode === "in") await sync.signIn(user, pass);
+        else if (mode === "up") {
+          await sync.signUp(user, $("#au-name").value, pass);
+          try { code = await sync.newRecoveryCode(); } catch (ex) { console.warn(ex); }
+        } else code = await sync.resetPassword(user, $("#au-code").value, pass);
+        const done = () => { EWF.ui.route(); checkNotifications(); };
+        toast(mode === "forgot" ? "Đã đổi mật khẩu" : `Chào ${S.profile ? S.profile.display_name : "bạn"}!`);
+        if (code) recoveryCodePage(code, mode === "forgot", done); else done();
       } catch (ex) {
         err.textContent = ex.message; err.hidden = false; btn.disabled = false;
       }
     };
+  }
+
+  // Hiện mã khôi phục một lần duy nhất; phải xác nhận đã lưu mới đi tiếp.
+  let showingCode = false;
+  function recoveryCodePage(code, afterReset, next) {
+    showingCode = true; // để sync "change" không vẽ đè trang này
+    const name = S.profile ? S.profile.username : "";
+    app.innerHTML = `
+      <div class="auth">
+        <div class="card panel">
+          <p class="eyebrow">${afterReset ? "Mã cũ đã hết hiệu lực" : "Bước quan trọng"}</p>
+          <h3>Lưu mã khôi phục mật khẩu</h3>
+          <p class="muted small">Nếu quên mật khẩu, bấm <b>Quên mật khẩu?</b> ở màn hình đăng nhập và nhập mã này để đặt mật khẩu mới.
+            Mã chỉ hiện <b>một lần</b>. Hãy chụp màn hình hoặc gửi vào tin nhắn cho chính bạn.</p>
+          <div class="recovery-code" id="rc-code">${esc(code)}</div>
+          <p class="muted small" style="text-align:center">Tài khoản: <b>${esc(name)}</b></p>
+          <div class="row" style="justify-content:center"><button class="btn sm" id="rc-copy">Sao chép</button></div>
+          <label class="row small" style="margin:16px 0 12px"><input type="checkbox" id="rc-ok"> Tôi đã lưu mã ở nơi an toàn</label>
+          <button class="btn primary" id="rc-next" style="width:100%" disabled>Tiếp tục</button>
+        </div>
+      </div>`;
+    $("#rc-copy").onclick = () => {
+      const text = `Mã khôi phục English With Friend (tài khoản ${name}): ${code}`;
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast("Đã sao chép mã"), () => {
+        const sel = window.getSelection(), range = document.createRange();
+        range.selectNodeContents($("#rc-code")); sel.removeAllRanges(); sel.addRange(range);
+        toast("Nhấn Ctrl+C để sao chép mã");
+      });
+    };
+    $("#rc-ok").onchange = (e) => { $("#rc-next").disabled = !e.target.checked; };
+    $("#rc-next").onclick = () => { showingCode = false; next(); };
+  }
+
+  async function makeRecoveryCode(next) {
+    try { recoveryCodePage(await sync.newRecoveryCode(), false, next); }
+    catch (ex) { toast(ex.message); }
   }
 
   function roomPage() {
@@ -174,7 +231,7 @@
         <div><p class="eyebrow">Mã mời bạn vào phòng</p><div class="room-code" id="room-code">${esc(r.code)}</div></div>
         <div class="field" style="margin:0"><label for="wk-day">Ngày làm test tuần</label>
           <select id="wk-day">${WEEKDAYS.map((d, i) => `<option value="${i}" ${i === r.week_test_day ? "selected" : ""}>${d}</option>`).join("")}</select></div>
-        <div class="row"><button class="btn sm" id="copy-code">Sao chép mã</button><button class="btn sm ghost" id="logout">Đăng xuất (${esc(S.profile.username)})</button><button class="btn sm danger" id="leave">Rời phòng</button></div>
+        <div class="row"><button class="btn sm" id="copy-code">Sao chép mã</button><button class="btn sm ghost" id="new-rc">Mã khôi phục mới</button><button class="btn sm ghost" id="logout">Đăng xuất (${esc(S.profile.username)})</button><button class="btn sm danger" id="leave">Rời phòng</button></div>
       </section>`;
 
     $("#copy-code").onclick = () => {
@@ -190,6 +247,11 @@
       catch (ex) { toast(ex.message); }
     };
     $("#logout").onclick = async () => { await sync.signOut(); toast("Đã đăng xuất"); EWF.ui.route(); };
+    $("#new-rc").onclick = (e) => {
+      const b = e.currentTarget;
+      if (b.dataset.confirm !== "1") { b.dataset.confirm = "1"; b.textContent = "Mã cũ sẽ hết hiệu lực — bấm lần nữa"; return; }
+      makeRecoveryCode(() => EWF.ui.route());
+    };
     $("#leave").onclick = async (e) => {
       const b = e.currentTarget;
       if (b.dataset.confirm !== "1") { b.dataset.confirm = "1"; b.textContent = "Bấm lần nữa để rời"; return; }
@@ -568,9 +630,17 @@
 
   let notified = false;
   sync.on("change", () => {
-    if (gated || location.hash === "#/friends") EWF.ui.route();
+    if (!showingCode && (gated || location.hash === "#/friends")) EWF.ui.route();
     if (S.room && !notified) { notified = true; checkNotifications(); }
     if (!S.user) { notified = false; setBadge(0); }
+  });
+
+  // Tài khoản tạo trước khi có mã khôi phục: nhắc tạo mã (trang chủ và Cùng học).
+  afterRoute((h) => {
+    if (S.recovery !== false || showingCode || !["#/", "#", "#/friends"].includes(h) || $("#rc-banner")) return;
+    app.insertAdjacentHTML("afterbegin", `<div class="card panel banner-sm row" id="rc-banner" style="justify-content:space-between;flex-wrap:wrap">
+      <span>🔑 Tạo <b>mã khôi phục</b> để tự đặt lại mật khẩu nếu lỡ quên.</span><button class="btn sm primary" id="rc-make">Tạo mã ngay</button></div>`);
+    $("#rc-make").onclick = () => makeRecoveryCode(() => EWF.ui.route());
   });
 
   // Khối nhỏ trên trang chủ: hôm nay bạn cùng phòng học thế nào.

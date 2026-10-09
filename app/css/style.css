@@ -368,3 +368,5 @@ pre { background: var(--surface-2); padding: 12px; border-radius: 10px; overflow
   .sb-row { grid-template-columns: auto 1fr auto; }
   .sb-row .small { grid-column: 2 / -1; }
 }
+.recovery-code { font: 600 26px ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 3px; text-align: center; padding: 16px; margin: 16px 0 6px; border: 2px dashed var(--accent); border-radius: 12px; background: var(--accent-soft); user-select: all; word-break: break-all; }
+.code-input { text-transform: uppercase; letter-spacing: 2px; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
