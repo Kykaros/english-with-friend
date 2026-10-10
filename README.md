@@ -18,7 +18,7 @@ Trang web học từ vựng tiếng Anh. Có thể học một mình ngay trên 
 - **Luyện 4 kỹ năng** mỗi bài (mục *Luyện 4 kỹ năng* trong trang bài học):
   - **Đọc:** đoạn văn kiểu TOEIC Part 7 dùng các từ của bài (bấm vào từ để xem nghĩa), 4 câu hỏi có giải thích tiếng Việt.
   - **Nghe:** hội thoại đọc bằng 2 giọng nam/nữ, chỉnh được tốc độ, 3 câu hỏi; chép chính tả từng câu (tô đỏ từ sai).
-  - **Nói:** đọc theo từng từ và câu ví dụ, máy nghe và chấm % từ đúng (cần **Chrome/Edge** và có mạng); ghi âm trả lời câu hỏi rồi gửi bạn nghe.
+  - **Nói:** đọc theo từng từ và câu ví dụ, máy nghe và chấm % từ đúng (cần **Chrome/Edge** và có mạng).
   - **Viết:** đặt câu với từ được giao và viết email 50–80 từ. Máy kiểm tra hình thức (dùng đúng từ, độ dài, viết hoa, lời chào/kết), có bài mẫu. Gửi bạn chấm để được sửa bài.
 - **Ôn tập ngắt quãng**: mỗi từ được hẹn ôn lại sau 1 → 2 → 4 → 8 → 16 → 32 ngày; trả lời sai thì quay về từ đầu. Trang chủ cho biết hôm nay cần ôn bao nhiêu từ.
 - **Tra từ** bằng tiếng Anh hoặc tiếng Việt (gõ không dấu cũng được).
@@ -100,7 +100,7 @@ Nếu khi tạo tài khoản báo lỗi email không hợp lệ, đổi `emailDo
 
 ### Chấm bài cho nhau
 
-Bài nói (ghi âm) và bài viết gửi từ phần luyện kỹ năng sẽ hiện ở **Cùng học → Chấm bài**. Người kia chấm 1–5 sao, sửa trực tiếp bài viết và nhận xét. Kết quả hiện trong dòng hoạt động.
+Bài viết gửi từ phần luyện kỹ năng sẽ hiện ở **Cùng học → Chấm bài**. Người kia chấm 1–5 sao, sửa trực tiếp bài viết và nhận xét. Kết quả hiện trong dòng hoạt động.
 Ghi âm chỉ thành viên trong phòng nghe được. Micro chỉ hoạt động khi mở trang qua link GitHub Pages (https) và bạn cho phép trình duyệt dùng micro.
 
 **Test cuối tuần** giờ có thêm 2 câu đọc hiểu và 2 câu nghe hiểu, lấy từ bài cả phòng học nhiều nhất trong tuần.

@@ -13,7 +13,6 @@
   };
   const LETTERS = "ABCD";
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
   const inRoom = () => !!(sync && sync.enabled && S.user && S.room);
   const LS = {
     get(k, f) { try { const v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch { return f; } },
@@ -307,27 +306,16 @@
   function speakPage(deckId, lessonId) {
     const ctx = load(deckId, lessonId, "speak");
     if (!ctx) return;
-    const P = ctx.data.speak;
     const words = ctx.lesson.words;
     const sentences = words.filter((w) => w.example).map((w) => w.example);
-    const qs = P.q || [];
     app.innerHTML = `${head(ctx, "speak", "Luyện nói")}
-      ${SR ? "" : `<div class="card panel banner-sm">Trình duyệt này chưa hỗ trợ nhận dạng giọng nói. Hãy mở bằng <b>Chrome</b> hoặc <b>Edge</b> để được chấm phát âm. Phần ghi âm gửi bạn bên dưới vẫn dùng được.</div>`}
+      ${SR ? "" : `<div class="card panel banner-sm">Trình duyệt này chưa hỗ trợ nhận dạng giọng nói. Hãy mở bằng <b>Chrome</b> hoặc <b>Edge</b> để được chấm phát âm.</div>`}
       ${SR ? `<section class="section">
         <div class="deck-head"><div><h2>Đọc theo</h2><p class="muted small" style="margin:4px 0 0">Bấm ${I.speaker.replace("<svg", '<svg width="14" height="14"')} nghe mẫu, rồi bấm 🎤 và đọc to. App so từng từ máy nghe được với câu gốc.</p></div><span class="chip" id="sp-avg"></span></div>
         <h3 class="sub-h">Từ vựng</h3>
         <div class="card sp-list">${words.map((w, i) => spRow("w" + i, w.word, w.vi)).join("")}</div>
         <h3 class="sub-h">Câu ví dụ</h3>
         <div class="card sp-list">${sentences.map((s, i) => spRow("s" + i, s)).join("")}</div>
-      </section>` : ""}
-      ${qs.length ? `<section class="section">
-        <div class="deck-head"><div><h2>Trả lời câu hỏi</h2><p class="muted small" style="margin:4px 0 0">Ghi âm câu trả lời (30–60 giây)${inRoom() ? " rồi gửi để bạn cùng phòng nghe và góp ý." : ". Vào phòng ở mục Cùng học để gửi cho bạn nghe."}</p></div></div>
-        ${qs.map((q, i) => `<div class="card panel rec" data-q="${i}">
-          <div class="row" style="justify-content:space-between;flex-wrap:nowrap"><p class="q-text" style="margin:0">${esc(q)}</p>${speakBtn(q)}</div>
-          ${P.tips && P.tips[i] ? `<p class="muted small">${esc(P.tips[i])}</p>` : ""}
-          ${canRecord ? `<div class="row rec-ctl"><button class="btn primary" data-rec="${i}">🎙 Ghi âm</button><span class="muted small rec-time"></span></div><div class="rec-out"></div>`
-            : `<p class="muted small">Trình duyệt này không ghi âm được.</p>`}
-        </div>`).join("")}
       </section>` : ""}`;
 
     // --- Đọc theo ---
@@ -372,8 +360,6 @@
       b.classList.remove("on"); b.disabled = false; busy = false;
     }));
 
-    // --- Ghi âm trả lời câu hỏi ---
-    $$("[data-rec]").forEach((b) => (b.onclick = () => record(ctx, qs, +b.dataset.rec, b)));
   }
   function spRow(id, text, vi) {
     return `<div class="sp-row" data-id="${id}">
@@ -383,52 +369,6 @@
       <button class="icon-btn mic" data-mic="${id}" data-text="${esc(text)}" title="Bấm rồi đọc to">🎤</button>
     </div>`;
   }
-  const MIME = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || "";
-  async function record(ctx, qs, i, btn) {
-    const card = $(`.rec[data-q="${i}"]`);
-    const out = $(".rec-out", card), time = $(".rec-time", card);
-    if (btn.dataset.state === "on") { btn.stopRec(); return; }
-    let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch { toast("Không mở được micro — hãy cho phép trình duyệt dùng micro."); return; }
-    speechSynthesis.cancel();
-    const rec = new MediaRecorder(stream, MIME ? { mimeType: MIME } : undefined);
-    const chunks = [];
-    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-    const t0 = Date.now();
-    const tick = setInterval(() => {
-      const s = Math.floor((Date.now() - t0) / 1000);
-      time.textContent = `Đang ghi… ${s}s / 90s`;
-      if (s >= 90) btn.stopRec();
-    }, 250);
-    const end = () => { clearInterval(tick); stream.getTracks().forEach((t) => t.stop()); };
-    btn.stopRec = () => { if (rec.state !== "inactive") rec.stop(); };
-    onLeave(() => { btn.stopRec(); end(); });
-    rec.onstop = () => {
-      end();
-      btn.dataset.state = ""; btn.textContent = "🎙 Ghi lại"; time.textContent = "";
-      const blob = new Blob(chunks, { type: rec.mimeType || MIME || "audio/webm" });
-      const secs = Math.round((Date.now() - t0) / 1000);
-      const url = URL.createObjectURL(blob);
-      out.innerHTML = `<audio controls src="${url}"></audio>
-        <div class="row">${inRoom() ? `<button class="btn primary sm" data-send>Gửi cho bạn nghe</button>` : `<span class="muted small">Vào phòng ở mục Cùng học để gửi bài cho bạn.</span>`}<span class="muted small">${secs} giây</span></div>`;
-      const send = $("[data-send]", out);
-      if (send) send.onclick = async () => {
-        send.disabled = true; send.textContent = "Đang gửi…";
-        try {
-          await sync.submitWork({
-            kind: "speaking", ref: `${skillId(ctx, "speak")}|${i}`, title: `Bài ${ctx.lesson.id} · Nói`,
-            prompt: qs[i], audio: blob,
-          });
-          send.textContent = "Đã gửi ✓";
-          toast("Đã gửi — bạn cùng phòng sẽ nghe và góp ý");
-        } catch (ex) { toast(ex.message); send.disabled = false; send.textContent = "Gửi lại"; }
-      };
-    };
-    rec.start();
-    btn.dataset.state = "on"; btn.textContent = "■ Dừng"; out.innerHTML = "";
-  }
-
   // ================= VIẾT =================
   function checksFor(text, reqWords, opts = {}) {
     const t = text.trim();
