@@ -11,5 +11,10 @@ window.EWF_DATA_FILES = [
   "toeic600-skills-3.js",
   "toeic600-skills-4.js",
   "toeic600-skills-5.js",
+  "hackers-vocab.js",
+  "hackers-skills-1.js",
+  "hackers-skills-2.js",
+  "hackers-skills-3.js",
+  "hackers-plus.js",
   "mau-bo-tu.js",
 ];

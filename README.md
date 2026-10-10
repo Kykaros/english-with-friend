@@ -10,6 +10,10 @@ Trang web học từ vựng tiếng Anh. Có thể học một mình ngay trên 
 ## Có gì trong trang
 
 - **600 Essential Words for TOEIC**: 50 bài, mỗi từ có nghĩa tiếng Việt, định nghĩa tiếng Anh, câu ví dụ, họ từ và audio đọc từng bài.
+- **Hackers TOEIC Vocabulary**: 30 Day theo chủ đề.
+  - Bộ "Hackers TOEIC Vocabulary" có 1.193 từ trọng tâm, kèm định nghĩa và câu ví dụ do mình tự viết, cùng phần luyện 4 kỹ năng cho cả 30 Day.
+  - Bộ "Hackers – Từ vựng hoàn chỉnh" có 3.704 từ (cơ bản, 800 và 900 điểm), chỉ gồm nghĩa ngắn.
+  - Bản PDF bị thiếu trang 301–311, nên Day 18 chỉ có 10 từ trọng tâm và không có danh sách từ hoàn chỉnh.
 - **6 cách học** mỗi bài: Thẻ ghi nhớ · Anh → Việt · Việt → Anh · Nghe & chọn · Điền vào câu · Chính tả.
 - **Luyện 4 kỹ năng** mỗi bài (mục *Luyện 4 kỹ năng* trong trang bài học):
   - **Đọc:** đoạn văn kiểu TOEIC Part 7 dùng các từ của bài (bấm vào từ để xem nghĩa), 4 câu hỏi có giải thích tiếng Việt.
@@ -120,6 +124,9 @@ app/
   data/manifest.js    danh sách file dữ liệu được nạp
   data/toeic600.js    600 từ TOEIC
   data/toeic600-skills-1..5.js  nội dung đọc/nghe/nói/viết cho 50 bài (mỗi file 10 bài)
+  data/hackers-vocab.js         Hackers: từ trọng tâm 30 Day
+  data/hackers-skills-1..3.js   Hackers: đọc/nghe/nói/viết cho 30 Day
+  data/hackers-plus.js          Hackers: từ vựng hoàn chỉnh (cơ bản/800/900)
   data/mau-bo-tu.js   bộ từ mẫu để bạn tự sửa
   data/mau-nhap.csv   file CSV mẫu để nhập
   audio/toeic600/     audio đọc từ của từng bài (1–50, thiếu bài 14)
