@@ -29,6 +29,10 @@
     spell:  { name: "Chính tả", desc: "Nghe + nghĩa, gõ lại từ", icon: I.keyboard },
   };
 
+  // Câu đọc hiểu / nghe hiểu trong đề test tuần (không phải chế độ học riêng).
+  const QMODES = { ...MODES, rc: { name: "Đọc hiểu" }, lc: { name: "Nghe hiểu" } };
+  const modeName = (m) => (QMODES[m] || {}).name || m;
+
   // ---------- Tiện ích ----------
   function toast(msg) {
     const t = $("#toast");
@@ -96,6 +100,40 @@
     const b = e.target.closest("[data-speak]");
     if (b) { e.preventDefault(); e.stopPropagation(); speak(b.dataset.speak); }
   });
+  // Đọc hội thoại nhiều câu, mỗi người một giọng: lines = [["M"|"W", "câu"], …]. Trả về hàm dừng.
+  const MALE = /david|mark|guy|andrew|christopher|eric|roger|steffan|ryan|brian|george|james|william|liam|thomas|daniel|alex|fred|male/i;
+  const FEMALE = /zira|aria|jenny|michelle|emma|sonia|libby|natasha|clara|susan|hazel|samantha|karen|moira|tessa|ava|allison|female/i;
+  function dialogVoices() {
+    const pick = (re) => voices.find((v) => re.test(v.name) && /en-US/i.test(v.lang)) || voices.find((v) => re.test(v.name));
+    const main = voices.find((v) => v.name === EWF.settings().voice) || voices[0];
+    const m = pick(MALE), w = pick(FEMALE);
+    return { M: m || main, W: w || (m ? main : voices.find((v) => v !== main)) || main };
+  }
+  let lineUtter = null; // giữ tham chiếu để Chrome không "quên" sự kiện onend
+  function speakLines(lines, { rate, onLine, onEnd } = {}) {
+    if (!("speechSynthesis" in window)) { toast("Trình duyệt không hỗ trợ đọc phát âm"); return () => {}; }
+    speechSynthesis.cancel();
+    const vs = dialogVoices();
+    let i = 0, stopped = false;
+    const step = () => {
+      if (stopped) return;
+      if (i >= lines.length) { onLine && onLine(-1); onEnd && onEnd(); return; }
+      const [who, text] = lines[i];
+      const u = new SpeechSynthesisUtterance(text);
+      const v = vs[who] || vs.M;
+      if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "en-US";
+      if (who === "W" && vs.W === vs.M) u.pitch = 1.4; // chỉ có một giọng: đổi cao độ cho dễ phân biệt
+      u.rate = rate || EWF.settings().rate;
+      const me = i;
+      u.onend = u.onerror = () => { if (!stopped && me === i) { i++; setTimeout(step, 280); } };
+      lineUtter = u;
+      onLine && onLine(i);
+      speechSynthesis.speak(u);
+    };
+    step();
+    return () => { stopped = true; speechSynthesis.cancel(); onLine && onLine(-1); };
+  }
+  const paragraphs = (text) => String(text || "").split(/\n\s*\n/).map((p) => `<p>${esc(p.trim()).replace(/\n/g, "<br>")}</p>`).join("");
   const speakBtn = (text, cls = "icon-btn") => `<button class="${cls}" data-speak="${esc(text)}" title="Nghe phát âm">${I.speaker}</button>`;
 
   // ---------- Câu điền từ: tìm từ (hoặc dạng biến đổi) trong câu ví dụ ----------
@@ -379,7 +417,7 @@
         <div class="bar"><i style="width:${(Math.min(results.size, total) / total) * 100}%"></i></div>
         <span class="count">${Math.min(results.size + 1, total)}/${total}</span>
       </div>
-      <p class="eyebrow" style="text-align:center;margin:-6px 0 14px">${esc(title)} · ${MODES[q.m].name}</p>`;
+      <p class="eyebrow" style="text-align:center;margin:-6px 0 14px">${esc(title)} · ${modeName(q.m)}</p>`;
 
     function record(w, g, given) {
       if (EWF.wordByKey(w.key)) EWF.grade(w.key, g); // từ của bộ mà máy này không có thì chỉ tính điểm
@@ -491,20 +529,34 @@
       } else if (qm === "listen") {
         label = "Nghe và chọn từ bạn nghe được";
         prompt = `<button class="listen-btn" data-speak="${esc(w.word)}" title="Nghe lại (S)">${I.speaker}</button><div class="sub small">Nhấn để nghe lại · phím <span class="kbd">S</span></div>`;
+      } else if (qm === "rc") {
+        label = "Đọc đoạn văn rồi trả lời";
+        prompt = `<details class="passage-box" open><summary>${esc(q.p.type || "")} · ${esc(q.p.title || "")}</summary><div class="passage">${paragraphs(q.p.text)}</div></details><div class="q-text">${esc(q.q)}</div>`;
+      } else if (qm === "lc") {
+        label = "Nghe đoạn hội thoại rồi trả lời";
+        prompt = `<button class="listen-btn" id="lc-play" title="Nghe (S)">${I.speaker}</button><div class="sub small">Nhấn để nghe cả đoạn · phím <span class="kbd">S</span></div><div class="q-text">${esc(q.q)}</div>`;
       } else {
         const c = clozeOf(w) || { before: "", after: "", answer: w.word };
         label = "Chọn từ phù hợp để điền vào chỗ trống";
         prompt = `<div class="sentence">${esc(c.before)}<span class="blank">&nbsp;</span>${esc(c.after)}</div>${w.vi ? `<div class="sub small">Gợi ý nghĩa: ${esc(w.vi)}</div>` : ""}`;
       }
       const { o: opts, a: ans } = q.o ? q : choiceOptions(qm, w, pool);
-      const showFn = (s) => (qm === "envi" ? esc(s) : `<span class="en">${esc(s)}</span>`);
+      const passage = qm === "rc" || qm === "lc";
+      const showFn = (s) => (qm === "envi" || passage ? esc(s) : `<span class="en">${esc(s)}</span>`);
 
       app.innerHTML = `<div class="study">${header(q)}
         <div class="card q-card"><div class="prompt-lbl">${label}</div>${prompt}</div>
-        <div class="choices">${opts.map((o, i) => `<button class="choice" data-i="${i}"><span class="k">${i + 1}</span><span>${showFn(o)}</span></button>`).join("")}</div>
+        <div class="choices${passage ? " wide" : ""}">${opts.map((o, i) => `<button class="choice" data-i="${i}"><span class="k">${i + 1}</span><span>${showFn(o)}</span></button>`).join("")}</div>
         <div id="fb"></div>
       </div>`;
       if ((qm === "listen" || (qm === "envi" && EWF.settings().autoSpeak))) speak(w.word);
+      let stopLines = null;
+      const playLines = () => { if (stopLines) stopLines(); stopLines = speakLines(q.lines); };
+      if (qm === "lc") {
+        $("#lc-play").onclick = playLines;
+        const prev = cleanup;
+        cleanup = () => { if (stopLines) stopLines(); prev && prev(); };
+      }
 
       let answered = false;
       const choose = (i) => {
@@ -517,13 +569,15 @@
           else if (k === i) b.classList.add("wrong");
         });
         record(w, ok ? 2 : 0, i);
+        if (passage) return explain(q, ok);
         if (qm === "cloze" || qm === "vien" || qm === "listen") speak(qm === "cloze" ? w.example : w.word);
         feedback(w, ok);
       };
       $$(".choice").forEach((b) => (b.onclick = () => choose(+b.dataset.i)));
       onKey((e) => {
         if (/^[1-4]$/.test(e.key)) choose(+e.key - 1);
-        else if (e.key.toLowerCase() === "s" && qm !== "vien") speak(w.word);
+        else if (e.key.toLowerCase() === "s" && qm === "lc") playLines();
+        else if (e.key.toLowerCase() === "s" && qm !== "vien" && !passage) speak(w.word);
         else if ((e.key === "Enter" || e.key === " ") && answered) { e.preventDefault(); next(); }
       });
     }
@@ -541,6 +595,14 @@
         const prev = cleanup;
         cleanup = () => { clearTimeout(t); prev && prev(); };
       }
+    }
+
+    function explain(q, ok) {
+      $("#fb").innerHTML = `<div class="feedback ${ok ? "ok" : "no"}">
+        <div><div class="ans">${ok ? "Chính xác!" : `Chưa đúng — đáp án: ${esc(q.o[q.a])}`}</div>${q.why ? `<div class="why">${esc(q.why)}</div>` : ""}</div>
+        <button class="btn primary" id="next-btn">Tiếp <span class="kbd" style="color:inherit;border-color:currentColor">Enter</span></button>
+      </div>`;
+      $("#next-btn").onclick = next;
     }
 
     // --- Chính tả ---
@@ -816,7 +878,7 @@
 
   // ---------- Dùng chung cho social.js ----------
   EWF.ui = {
-    $, $$, esc, I, MODES, app, toast, shuffle, fold, normAnswer, speak, speakBtn, clozeOf, stemPattern,
+    $, $$, esc, I, MODES, app, toast, shuffle, fold, normAnswer, speak, speakBtn, speakLines, paragraphs, modeName, clozeOf, stemPattern,
     findDeck, findLesson, allWords, dueWords, stats, bar, wordRow, wrongList, updateBadge, onKey,
     runSession, buildQuestions, route,
     addRoute: (re, fn) => routes.push([re, fn]),

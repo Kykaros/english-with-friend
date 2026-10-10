@@ -286,9 +286,18 @@
           <div><b>${s.learned}</b><span>đã học</span></div>
           <div><b>${s.mastered}</b><span>đã thuộc</span></div>
         </div>
+        ${skillLine(states[m.id])}
         ${m.id !== me() ? `<button class="btn sm" data-nudge="${esc(m.id)}">👉 Chọc ${esc(m.display_name)}</button>` : ""}
       </div>`).join("") + (S.members.length < 2 ? `<div class="card panel muted">Chưa có bạn nào trong phòng. Gửi mã <b>${esc(S.room.code)}</b> cho bạn để cùng học nhé.</div>` : "");
     $$("[data-nudge]").forEach((b) => (b.onclick = () => nudge(b.dataset.nudge)));
+  }
+
+  /** Số bài đã luyện mỗi kỹ năng (từ user_state.skills: "deck|bài|kỹ năng"). */
+  function skillLine(st) {
+    const n = { read: 0, listen: 0, speak: 0, write: 0 };
+    for (const k of Object.keys((st && st.skills) || {})) { const kind = k.split("|")[2]; if (kind in n) n[kind]++; }
+    if (!Object.values(n).some(Boolean)) return "";
+    return `<div class="muted small skill-line">Kỹ năng (số bài): 📖 Đọc <b>${n.read}</b> · 🎧 Nghe <b>${n.listen}</b> · 🗣️ Nói <b>${n.speak}</b> · ✍️ Viết <b>${n.write}</b></div>`;
   }
 
   async function nudge(id) {
@@ -313,6 +322,7 @@
       case "weekly_open": return `📝 Bài test tuần ${esc(String(p.week || "").split("-W")[1] || "")} đã mở — ${link(p.id, "vào làm")}`;
       case "win": return p.tie ? `🤝 ${link(p.id, p.title)}: hoà nhau!` : `🏆 <b>${esc(nameOf(p.winner))}</b> thắng ${link(p.id, p.title)} (${esc(p.scores)})`;
       case "joined": return `${who} đã vào phòng 👋`;
+      case "skill": return `${who} luyện ${esc({ read: "Đọc 📖", listen: "Nghe 🎧", speak: "Nói 🗣️", write: "Viết ✍️" }[p.kind] || p.kind)} <i>${esc(p.title)}</i>: ${p.kind === "speak" ? `phát âm đúng ${p.ok}%` : p.kind === "write" ? `đạt ${p.ok}/${p.total} phần` : `đúng ${p.ok}/${p.total}`}`;
       case "review": return `${who} đã chấm bài ${esc(p.kind === "speaking" ? "nói" : "viết")} của <b>${esc(nameOf(p.to))}</b>: ${"★".repeat(p.stars || 0)}`;
       case "submission": return `${who} gửi bài ${esc(p.kind === "speaking" ? "nói" : "viết")} <i>${esc(p.title || "")}</i> — <a href="#/inbox">chấm giúp</a>`;
       default: return `${who} · ${esc(a.type)}`;
@@ -356,6 +366,26 @@
     return { week: EWF.weekId(t), weekStart: ws, open, close };
   }
   /** Tạo đề test tuần nếu đã tới ngày mà chưa ai tạo. Trả về đề (hoặc null nếu chưa tới ngày / chưa đủ từ). */
+  /** Thêm 2 câu đọc hiểu + 2 câu nghe hiểu từ bài cả phòng học nhiều nhất trong tuần (nếu bài đó có phần kỹ năng). */
+  function skillQuestions(words) {
+    const count = new Map();
+    for (const w of words) if (EWF.skillsOf(w.deckId, w.lessonId)) { const k = w.deckId + "|" + w.lessonId; count.set(k, (count.get(k) || 0) + 1); }
+    const top = [...count.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!top) return [];
+    const [d, l] = top[0].split("|");
+    const data = EWF.skillsOf(d, l);
+    const pick = (qs) => EWF.ui.shuffle(qs.map((q, i) => ({ q, i }))).slice(0, 2).sort((a, b) => a.i - b.i);
+    const out = [];
+    if (data.read) pick(data.read.q).forEach(({ q, i }) => out.push({
+      m: "rc", w: { key: `rc|${d}|${l}|${i}`, word: "" }, p: { type: data.read.type, title: data.read.title, text: data.read.text },
+      ...EWF.skills.mixOptions({ q: q.q, o: q.o, a: q.a }), why: q.why || "",
+    }));
+    if (data.listen) pick(data.listen.q).forEach(({ q, i }) => out.push({
+      m: "lc", w: { key: `lc|${d}|${l}|${i}`, word: "" }, lines: data.listen.lines, ...EWF.skills.mixOptions({ q: q.q, o: q.o, a: q.a }), why: q.why || "",
+    }));
+    return out;
+  }
+
   async function ensureWeekly(states) {
     const w = weeklyWindow();
     if (Date.now() < w.open.getTime()) return null;
@@ -365,7 +395,7 @@
     let words = weekWords(states, w.weekStart.getTime());
     if (words.length < 4) words = everLearned(states);
     if (words.length < 4) return null;
-    const questions = buildQuestions(words, CHALLENGE_MODES, WEEKLY_SIZE);
+    const questions = [...buildQuestions(words, CHALLENGE_MODES, WEEKLY_SIZE), ...skillQuestions(words)];
     const n = w.week.split("-W")[1];
     const c = await sync.createChallenge({ kind: "weekly", week: w.week, title: `Test tuần ${n}`, questions });
     if (!c.existed) await sync.logActivity("weekly_open", { id: c.id, week: w.week });
@@ -382,7 +412,7 @@
       if (c) {
         const done = (c.challenge_results || []).some((r) => r.user_id === me());
         el.innerHTML = `<div class="card hero banner"><div><p class="eyebrow">Test cuối tuần</p><h2>${esc(c.title)} ${done ? "— bạn đã làm xong" : "đã mở!"}</h2>
-          <p class="muted">${WEEKLY_SIZE} câu từ những từ cả phòng học trong tuần · làm được tới hết ${fmtDate(new Date(w.close.getTime() - DAY))}</p></div>
+          <p class="muted">Từ vựng, đọc và nghe từ những bài cả phòng học trong tuần · làm được tới hết ${fmtDate(new Date(w.close.getTime() - DAY))}</p></div>
           <a class="btn ${done ? "" : "primary"}" href="#/challenge/${esc(c.id)}">${done ? "Xem kết quả" : "Làm ngay"}</a></div>`;
       } else if (Date.now() < w.open.getTime()) {
         const left = Math.ceil((w.open.getTime() - Date.now()) / DAY);
@@ -479,7 +509,7 @@
 
     const deadline = c.kind === "weekly" ? weeklyWindow(new Date(c.created_at).getTime()).close : null;
     const expired = deadline && Date.now() >= deadline.getTime();
-    const kinds = [...new Set(c.questions.map((q) => q.m))].map((m) => MODES[m].name).join(", ");
+    const kinds = [...new Set(c.questions.map((q) => q.m))].map(EWF.ui.modeName).join(", ");
     const start = () => runSession("envi", [], c.title, "#/challenge/" + c.id, {
       questions: c.questions,
       onFinish: (res) => submit(c, res),
@@ -523,7 +553,7 @@
     const mine = results.find((r) => r.user_id === me());
     const rows = S.members.map((m) => ({ m, r: results.find((x) => x.user_id === m.id) }))
       .sort((a, b) => (b.r ? b.r.score : -1) - (a.r ? a.r.score : -1) || (a.r ? a.r.duration_ms : 1e12) - (b.r ? b.r.duration_ms : 1e12));
-    const wrong = (mine.answers || []).filter((a) => !a.ok).map((a) => (c.questions.find((q) => q.w.key === a.k) || {}).w).filter(Boolean);
+    const wrong = (mine.answers || []).filter((a) => !a.ok).map((a) => (c.questions.find((q) => q.w.key === a.k) || {}).w).filter((w) => w && w.word);
     const headline = !allDone ? "Đang chờ bạn cùng phòng làm bài…"
       : w && w.tie ? "Hoà nhau! 🤝"
       : w && w.winner === me() ? "Bạn thắng! 🏆" : `${esc(nameOf(w ? w.winner : ""))} thắng lần này 💪`;
@@ -660,6 +690,7 @@
     } catch { /* mất mạng: bỏ qua */ }
   });
 
+  EWF.ui.gate = gate;
   navAlias({ challenge: "friends", weekly: "friends" });
   addRoute(/^#\/friends$/, friendsPage);
   addRoute(/^#\/challenge\/new$/, newChallengePage);

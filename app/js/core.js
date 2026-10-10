@@ -52,6 +52,11 @@
   }
   const wordByKey = (key) => byKey.get(key) || null;
 
+  // Nội dung luyện 4 kỹ năng của từng bài (data/*-skills-*.js gọi EWF.addSkills).
+  const skillData = {};
+  function addSkills(deckId, lessonId, data) { skillData[`${deckId}|${lessonId}`] = data; }
+  const skillsOf = (deckId, lessonId) => skillData[`${deckId}|${lessonId}`] || null;
+
   // Thông báo cho lớp đồng bộ (sync.js) mỗi khi dữ liệu học thay đổi.
   const listeners = [];
   const onChange = (fn) => listeners.push(fn);
@@ -268,7 +273,7 @@
   function saveSettings(s) { LS.set(KEYS.settings, s); }
 
   window.EWF = {
-    decks, addDeck, loadFiles, loadCustomDecks, saveCustomDeck, removeCustomDeck, wordByKey,
+    decks, addDeck, addSkills, skillsOf, loadFiles, loadCustomDecks, saveCustomDeck, removeCustomDeck, wordByKey,
     getState, isDue, isMastered, grade, streak, streakOf, summarize, today, dayKey, weekStart, weekId, days: () => days,
     progress: () => progress,
     exportProgress, importProgress, resetProgress, settings, saveSettings,

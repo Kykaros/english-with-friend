@@ -166,7 +166,7 @@
   // Vẽ lại trang đang xem nếu dữ liệu vừa được gộp thêm — trừ khi đang làm bài.
   function refreshView() {
     const h = location.hash;
-    if (/^#\/(study|challenge|weekly)/.test(h) || !EWF.ui) return;
+    if (/^#\/(study|challenge|weekly|read|listen|speak|write|inbox)/.test(h) || !EWF.ui) return;
     EWF.ui.route();
   }
 
@@ -251,6 +251,35 @@
     return need(await db.from("challenge_results").select("*").eq("challenge_id", id));
   }
 
+  // ---------- Bài nói / bài viết gửi bạn cùng phòng chấm ----------
+  const SUB_LIST = "id, user_id, kind, ref, prompt, text, audio_path, auto_score, created_at, reviews(reviewer_id, stars, corrected, comment, created_at)";
+  async function submitWork({ kind, ref, title, prompt, text, audio, autoScore }) {
+    let audio_path = null;
+    if (audio) {
+      const ext = ((audio.type || "audio/webm").split("/")[1] || "webm").split(";")[0];
+      audio_path = `${S.room.id}/${S.user.id}/${Date.now()}.${ext}`;
+      need(await db.storage.from("recordings").upload(audio_path, audio, { contentType: audio.type || "audio/webm" }));
+    }
+    const row = need(await db.from("submissions").insert({
+      room_id: S.room.id, user_id: S.user.id, kind, ref, prompt: prompt || null, text: text || null, audio_path,
+      auto_score: autoScore ?? null,
+    }).select(SUB_LIST).single());
+    await logActivity("submission", { id: row.id, kind, title });
+    return row;
+  }
+  async function listSubmissions(limit = 40) {
+    return need(await db.from("submissions").select(SUB_LIST).eq("room_id", S.room.id).order("created_at", { ascending: false }).limit(limit));
+  }
+  async function reviewWork(sub, { stars, corrected, comment }) {
+    need(await db.from("reviews").upsert({
+      submission_id: sub.id, reviewer_id: S.user.id, stars, corrected: corrected || null, comment: comment || null,
+    }, { onConflict: "submission_id,reviewer_id" }));
+    await logActivity("review", { id: sub.id, kind: sub.kind, to: sub.user_id, stars });
+  }
+  async function audioUrl(path) {
+    return need(await db.storage.from("recordings").createSignedUrl(path, 3600)).signedUrl;
+  }
+
   // ---------- Khởi động ----------
   async function start() {
     renderStatus();
@@ -283,6 +312,7 @@
     },
     createRoom, joinRoom, leaveRoom, updateRoom, roomStates,
     logActivity: (t, p) => (enabled && S.room ? logActivity(t, p) : Promise.resolve()),
+    submitWork, listSubmissions, reviewWork, audioUrl,
     activities, createChallenge, getChallenge, getWeekly, listChallenges, submitResult,
   };
 })();

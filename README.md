@@ -11,6 +11,11 @@ Trang web học từ vựng tiếng Anh. Có thể học một mình ngay trên 
 
 - **600 Essential Words for TOEIC**: 50 bài, mỗi từ có nghĩa tiếng Việt, định nghĩa tiếng Anh, câu ví dụ, họ từ và audio đọc từng bài.
 - **6 cách học** mỗi bài: Thẻ ghi nhớ · Anh → Việt · Việt → Anh · Nghe & chọn · Điền vào câu · Chính tả.
+- **Luyện 4 kỹ năng** mỗi bài (mục *Luyện 4 kỹ năng* trong trang bài học):
+  - **Đọc:** đoạn văn kiểu TOEIC Part 7 dùng các từ của bài (bấm vào từ để xem nghĩa), 4 câu hỏi có giải thích tiếng Việt.
+  - **Nghe:** hội thoại đọc bằng 2 giọng nam/nữ, chỉnh được tốc độ, 3 câu hỏi; chép chính tả từng câu (tô đỏ từ sai).
+  - **Nói:** đọc theo từng từ và câu ví dụ, máy nghe và chấm % từ đúng (cần **Chrome/Edge** và có mạng); ghi âm trả lời câu hỏi rồi gửi bạn nghe.
+  - **Viết:** đặt câu với từ được giao và viết email 50–80 từ. Máy kiểm tra hình thức (dùng đúng từ, độ dài, viết hoa, lời chào/kết), có bài mẫu. Gửi bạn chấm để được sửa bài.
 - **Ôn tập ngắt quãng**: mỗi từ được hẹn ôn lại sau 1 → 2 → 4 → 8 → 16 → 32 ngày; trả lời sai thì quay về từ đầu. Trang chủ cho biết hôm nay cần ôn bao nhiêu từ.
 - **Tra từ** bằng tiếng Anh hoặc tiếng Việt (gõ không dấu cũng được).
 - **Phát âm** bằng giọng đọc có sẵn của Windows (đổi giọng và tốc độ trong Cài đặt).
@@ -89,6 +94,13 @@ where email = 'tendangnhap@ewf.local';
 ```
 Nếu khi tạo tài khoản báo lỗi email không hợp lệ, đổi `emailDomain` trong `app/js/config.js` thành một tên miền khác (ví dụ `ewf-app.com`). Chỉ đổi trước khi có người đăng ký.
 
+### Chấm bài cho nhau
+
+Bài nói (ghi âm) và bài viết gửi từ phần luyện kỹ năng sẽ hiện ở **Cùng học → Chấm bài**. Người kia chấm 1–5 sao, sửa trực tiếp bài viết và nhận xét. Kết quả hiện trong dòng hoạt động.
+Ghi âm chỉ thành viên trong phòng nghe được. Micro chỉ hoạt động khi mở trang qua link GitHub Pages (https) và bạn cho phép trình duyệt dùng micro.
+
+**Test cuối tuần** giờ có thêm 2 câu đọc hiểu và 2 câu nghe hiểu, lấy từ bài cả phòng học nhiều nhất trong tuần.
+
 ## Lưu ý
 
 Khi học một mình, tiến độ chỉ được lưu trong trình duyệt đang dùng. Muốn chuyển sang máy khác thì vào **Cài đặt → Xuất file tiến độ**, hoặc đăng nhập ở mục **Cùng học** để tự đồng bộ.
@@ -104,11 +116,14 @@ app/
   js/config.js        địa chỉ + khóa Supabase (điền ở Bước 1)
   js/sync.js          đăng nhập, phòng học, đồng bộ tiến độ, dòng hoạt động
   js/social.js        trang Cùng học, thách đấu, test cuối tuần
+  js/skills.js        luyện 4 kỹ năng (Đọc, Nghe, Nói, Viết) và trang Chấm bài
   data/manifest.js    danh sách file dữ liệu được nạp
   data/toeic600.js    600 từ TOEIC
+  data/toeic600-skills-1..5.js  nội dung đọc/nghe/nói/viết cho 50 bài (mỗi file 10 bài)
   data/mau-bo-tu.js   bộ từ mẫu để bạn tự sửa
   data/mau-nhap.csv   file CSV mẫu để nhập
   audio/toeic600/     audio đọc từ của từng bài (1–50, thiếu bài 14)
 supabase/schema.sql   cấu trúc dữ liệu + phân quyền trên Supabase (chạy ở Bước 1)
+supabase/recovery.sql mã khôi phục mật khẩu (đã gộp trong schema.sql; project cũ chạy thêm file này)
 .github/workflows/    tự đưa app/ lên GitHub Pages
 ```
